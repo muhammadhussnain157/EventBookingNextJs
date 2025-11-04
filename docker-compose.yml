@@ -1,20 +1,6 @@
-# ============================================
-# DOCKER COMPOSE CONFIGURATION
-# Event Booking Application with MongoDB Database
-# ============================================
-# This file orchestrates multiple containers:
-# 1. Web Application (Next.js)
-# 2. MongoDB Database (with persistent volume)
-
 version: "3.8"
 
-# ==========================================
-# SERVICES DEFINITION
-# ==========================================
 services:
-  # ==========================================
-  # Event Booking Web Application
-  # ==========================================
   eventbooking-app:
     # Container name for easy identification
     container_name: eventbooking-web
@@ -24,8 +10,6 @@ services:
       context: .
       dockerfile: Dockerfile
     
-    # Port mapping: host:container
-    # Access application on http://localhost:3000
     ports:
       - "3000:3000"
     
@@ -63,9 +47,6 @@ services:
     networks:
       - eventbooking-network
 
-  # ==========================================
-  # MongoDB Database Service
-  # ==========================================
   mongodb:
     # Use official MongoDB image
     image: mongo:7.0
@@ -102,9 +83,6 @@ services:
       timeout: 5s
       retries: 5
 
-# ==========================================
-# VOLUMES (Persistent Storage)
-# ==========================================
 volumes:
   # MongoDB data volume - persists even when containers are stopped/removed
   mongodb-data:
@@ -114,10 +92,7 @@ volumes:
   mongodb-config:
     driver: local
 
-# ==========================================
-# NETWORKS
-# ==========================================
-# Custom bridge network for inter-container communication
+
 networks:
   eventbooking-network:
     driver: bridge
