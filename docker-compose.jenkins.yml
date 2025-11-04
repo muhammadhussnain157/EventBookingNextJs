@@ -1,0 +1,122 @@
+# ============================================
+# DOCKER COMPOSE FOR JENKINS CI/CD
+# Event Booking Application with Volume Mounting
+# ============================================
+
+version: "3.8"
+
+services:
+  # ==========================================
+  # Event Booking Application Service
+  # Uses VOLUME MOUNT instead of Dockerfile
+  # ==========================================
+  eventbooking-jenkins-app:
+    # Use Node.js base image directly
+    image: node:18-alpine
+    
+    # Different container name for Jenkins deployment
+    container_name: eventbooking-jenkins-web
+    
+    # Set working directory
+    working_dir: /app
+    
+    # VOLUME MOUNT: Attach code as volume instead of using Dockerfile
+    volumes:
+      - ./:/app                    # Mount current directory to /app
+      - /app/node_modules          # Prevent overwriting node_modules
+      - /app/.next                 # Prevent overwriting .next build
+    
+    # Different port mapping: 3001 instead of 3000
+    ports:
+      - "3001:3000"
+    
+    # Environment variables
+    environment:
+      - NODE_ENV=production
+      # MongoDB Connection (connects to mongodb service)
+      - MONGODB_URI=mongodb://admin:eventbooking123@mongodb:27017/eventbooking?authSource=admin
+      # JWT Secrets
+      - ACCESS_TOKEN_SECRET=81f94b92b4878b4cb38842967852d96bd3dea167b78d6a69fe8ee3e8cab69772e8cab6
+      - REFRESH_TOKEN_SECRET=1987e5d36f795a8cdda47d86d3678d92406a4e9034a67d30944c2889aa320775aa00ea5921
+      # Cloudinary Configuration
+      - CLOUDINARY_CLOUD_NAME=dlqgimruf
+      - CLOUDINARY_API_KEY=181494556746859
+      - CLOUDINARY_API_SECRET=UBc3uCdTr1lNSJhofRVDtAj7ZZg
+      # Admin Configuration
+      - ADMIN_PIN=1004
+      # Application URL (update with your EC2 IP)
+      - NEXT_PUBLIC_APP_URL=http://13.201.33.162:3001
+    
+    # Command to run: install dependencies, build, and start
+    command: sh -c "npm install && npm run build && npm start"
+    
+    # Depends on MongoDB service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Network
+    networks:
+      - eventbooking-jenkins-network
+
+  # ==========================================
+  # MongoDB Database Service
+  # ==========================================
+  mongodb:
+    # Use official MongoDB image
+    image: mongo:7.0
+    
+    # Different container name for Jenkins deployment
+    container_name: eventbooking-jenkins-db
+    
+    # Different port mapping: 27018 instead of 27017
+    ports:
+      - "27018:27017"
+    
+    # Environment variables for MongoDB
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=eventbooking123
+      - MONGO_INITDB_DATABASE=eventbooking
+    
+    # Persistent volumes with different names
+    volumes:
+      - mongodb-jenkins-data:/data/db
+      - mongodb-jenkins-config:/data/configdb
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Network
+    networks:
+      - eventbooking-jenkins-network
+    
+    # Health check
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+# ==========================================
+# Named Volumes (Persistent Storage)
+# ==========================================
+volumes:
+  # MongoDB data volume (different name for Jenkins)
+  mongodb-jenkins-data:
+    driver: local
+  
+  # MongoDB configuration volume
+  mongodb-jenkins-config:
+    driver: local
+
+# ==========================================
+# Networks
+# ==========================================
+networks:
+  eventbooking-jenkins-network:
+    driver: bridge
