@@ -40,9 +40,13 @@ export function verifyRefreshToken(token: string): TokenPayload | null {
 export async function setAuthCookies(accessToken: string, refreshToken: string) {
   const cookieStore = cookies();
   
+  // In production on EC2 without HTTPS, set secure to false
+  // If you add HTTPS/SSL certificate later, change this back to true
+  const isSecure = process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_APP_URL?.startsWith('https');
+  
   cookieStore.set('accessToken', accessToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecure,
     sameSite: 'lax',
     maxAge: 15 * 60, // 15 minutes
     path: '/',
@@ -50,7 +54,7 @@ export async function setAuthCookies(accessToken: string, refreshToken: string) 
 
   cookieStore.set('refreshToken', refreshToken, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecure,
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60, // 7 days
     path: '/',
