@@ -1,0 +1,76 @@
+# ============================================
+# DOCKER COMPOSE CONFIGURATION
+# Event Booking Application with MongoDB Database
+# ============================================
+# This file orchestrates multiple containers:
+# 1. Web Application (Next.js)
+# 2. MongoDB Database (with persistent volume)
+
+version: "3.8"
+
+# ==========================================
+# SERVICES DEFINITION
+# ==========================================
+services:
+  # ==========================================
+  # Event Booking Web Application
+  # ==========================================
+  eventbooking-app:
+    # Container name for easy identification
+    container_name: eventbooking-web
+    
+    # Build from local Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
+    
+    # Port mapping: host:container
+    # Access application on http://localhost:3000
+    ports:
+      - "3000:3000"
+    
+    # Environment variables for the application
+    environment:
+      # Node environment
+      - NODE_ENV=production
+      
+      # MongoDB connection string (MongoDB Atlas)
+      - MONGODB_URI=${MONGODB_URI}
+      
+      # JWT Authentication secrets
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}
+      
+      # Cloudinary configuration for image uploads
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      
+      # Admin configuration
+      - ADMIN_PIN=${ADMIN_PIN:-1004}
+      
+      # Application URL
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Custom network for service communication
+    networks:
+      - eventbooking-network
+    
+    # Health check for the application
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+# ==========================================
+# NETWORKS
+# ==========================================
+# Custom bridge network for inter-container communication
+networks:
+  eventbooking-network:
+    driver: bridge
