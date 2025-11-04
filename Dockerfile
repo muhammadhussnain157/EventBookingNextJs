@@ -1,13 +1,3 @@
-# ============================================
-# EVENT BOOKING APPLICATION DOCKERFILE
-# ============================================
-# Multi-stage build for optimized Docker image
-# This creates a containerized Next.js application
-
-# ============================================
-# Stage 1: Dependencies
-# Install all Node.js dependencies
-# ============================================
 FROM node:18-alpine AS deps
 
 # Set working directory
@@ -36,8 +26,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Set environment variables for build
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 # Build the Next.js application
 # This creates optimized production files in .next folder
@@ -53,15 +43,18 @@ FROM node:18-alpine AS runner
 WORKDIR /app
 
 # Set to production mode
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create a non-root user for security best practices
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy necessary files from builder stage
+# Copy public folder from builder
 COPY --from=builder /app/public ./public
+
+# Copy package.json
+COPY --from=builder /app/package.json ./package.json
 
 # Copy built application with proper ownership
 # Next.js standalone mode creates a minimal server
@@ -75,11 +68,7 @@ USER nextjs
 EXPOSE 3000
 
 # Set port environment variable
-ENV PORT 3000
-
-# Health check to ensure container is running properly
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})" || exit 1
+ENV PORT=3000
 
 # Start the application
 CMD ["node", "server.js"]
