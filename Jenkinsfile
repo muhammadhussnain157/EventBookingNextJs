@@ -34,8 +34,8 @@ pipeline {
                 echo '=========================================='
                 echo "Repository: ${GITHUB_REPO}"
                 
-                // Checkout code from GitHub main branch
-                git branch: 'main',
+                // Checkout code from GitHub master branch
+                git branch: 'master',
                     url: "${GITHUB_REPO}"
                 
                 echo 'Code checkout completed successfully!'
