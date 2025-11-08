@@ -119,9 +119,9 @@ pipeline {
                         docker-compose -f docker-compose.jenkins.yml up -d --build
                     """
                     
-                    // Wait for containers to be healthy
-                    echo 'Waiting for containers to be ready...'
-                    sleep 30
+                    // Wait for containers to be healthy (npm install + build takes time)
+                    echo 'Waiting for containers to be ready (this may take 2-3 minutes)...'
+                    sleep 120
                 }
                 
                 echo 'Containers started successfully!'
