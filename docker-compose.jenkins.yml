@@ -23,6 +23,7 @@ services:
     # VOLUME MOUNT: Attach code as volume instead of using Dockerfile
     volumes:
       - ./:/app                    # Mount current directory to /app
+      - /app/node_modules          # Prevent overwriting node_modules
       - /app/.next                 # Prevent overwriting .next build
     
     # Different port mapping: 3001 instead of 3000
