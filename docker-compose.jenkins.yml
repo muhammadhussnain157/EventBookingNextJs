@@ -32,8 +32,8 @@ services:
     # Environment variables
     environment:
       - NODE_ENV=production
-      # MongoDB Connection (connects to mongodb service)
-      - MONGODB_URI=mongodb://admin:eventbooking123@mongodb:27017/eventbooking?authSource=admin
+      # MongoDB Connection (connects to eventbooking-jenkins-db service)
+      - MONGODB_URI=mongodb://admin:eventbooking123@eventbooking-jenkins-db:27017/eventbooking?authSource=admin
       # JWT Secrets
       - ACCESS_TOKEN_SECRET=81f94b92b4878b4cb38842967852d96bd3dea167b78d6a69fe8ee3e8cab69772e8cab6
       - REFRESH_TOKEN_SECRET=1987e5d36f795a8cdda47d86d3678d92406a4e9034a67d30944c2889aa320775aa00ea5921
@@ -51,7 +51,7 @@ services:
     
     # Depends on MongoDB service
     depends_on:
-      mongodb:
+      eventbooking-jenkins-db:
         condition: service_healthy
     
     # Restart policy
@@ -64,7 +64,7 @@ services:
   # ==========================================
   # MongoDB Database Service
   # ==========================================
-  mongodb:
+  eventbooking-jenkins-db:
     # Use official MongoDB image
     image: mongo:7.0
     
