@@ -31,7 +31,6 @@ services:
     
     # Environment variables
     environment:
-      - NODE_ENV=production
       # MongoDB Connection (connects to eventbooking-jenkins-db service)
       - MONGODB_URI=mongodb://admin:eventbooking123@eventbooking-jenkins-db:27017/eventbooking?authSource=admin
       # JWT Secrets
@@ -46,8 +45,8 @@ services:
       # Application URL (update with your EC2 IP)
       - NEXT_PUBLIC_APP_URL=http://43.205.229.191:3001
     
-    # Command to run: install dependencies, build, and start
-    command: sh -c "npm install && npm run build && npm start"
+    # Command to run: install ALL dependencies (including dev), build, and start in production
+    command: sh -c "npm install --production=false && npm run build && NODE_ENV=production npm start"
     
     # Depends on MongoDB service
     depends_on:
