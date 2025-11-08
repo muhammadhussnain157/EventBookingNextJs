@@ -44,7 +44,7 @@ services:
       # Admin Configuration
       - ADMIN_PIN=1004
       # Application URL (update with your EC2 IP)
-      - NEXT_PUBLIC_APP_URL=http://13.201.33.162:3001
+      - NEXT_PUBLIC_APP_URL=http://43.205.229.191:3001
     
     # Command to run: install dependencies, build, and start
     command: sh -c "npm install && npm run build && npm start"

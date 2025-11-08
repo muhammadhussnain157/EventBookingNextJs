@@ -20,7 +20,7 @@ pipeline {
         WORKSPACE_DIR = "${WORKSPACE}"
         
         // EC2 Public IP (update with your actual IP)
-        EC2_PUBLIC_IP = '13.201.33.162'
+        EC2_PUBLIC_IP = '43.205.229.191'
     }
 
     stages {
