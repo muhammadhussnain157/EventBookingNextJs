@@ -1,36 +1,320 @@
-# Part-II: Jenkins CI/CD Pipeline - Complete Step-by-Step Guide
+# Complete Cloud Deployment Guide: Part-I & Part-II
 
 ## 📋 Overview
 
-This guide will help you set up Jenkins CI/CD pipeline on the **SAME EC2 instance** where Part-I is already running.
+This comprehensive guide covers:
+- **Part-I:** Containerized deployment using Dockerfile and Docker Compose
+- **Part-II:** Jenkins CI/CD automation pipeline with volume mounting
 
-**What You'll Achieve:**
-- ✅ Install Jenkins on your existing EC2
-- ✅ Configure Jenkins with required plugins
-- ✅ Create automated pipeline that fetches code from GitHub
-- ✅ Build and deploy application using volume mounting
-- ✅ Run Part-II containers on different ports (3001, 27018)
+Both parts will run on the same AWS EC2 instance with different ports.
 
 ---
 
-## 🎯 Prerequisites Checklist
+# 🚀 PART-I: Containerized Deployment with Dockerfile
 
-Before starting, make sure you have:
-
-- [x] Part-I running successfully on EC2 (port 3000)
-- [x] EC2 instance public IP: `13.201.33.162` (replace with yours)
-- [x] SSH access to EC2 instance
-- [x] GitHub account
-- [x] Docker Hub account
-- [x] Your application code ready
+## What You'll Deploy:
+- Web Application (Next.js) on **port 3000**
+- MongoDB Database on **port 27017**
+- Using Dockerfile to build application image
+- Persistent volume for database
 
 ---
 
-## 📂 Part 1: Prepare Your Local Files
+## Part-I Step 1: Prepare Local Files
 
-### Step 1.1: Create docker-compose.jenkins.yml
+### 1.1 Create Dockerfile
 
-Create this file in your project root: `docker-compose.jenkins.yml`
+Create `Dockerfile` in your project root:
+
+```dockerfile
+# Use Node.js 18 Alpine as base image
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy all application files
+COPY . .
+
+# Build the Next.js application
+RUN npm run build
+
+# Expose port 3000
+EXPOSE 3000
+
+# Start the application
+CMD ["npm", "start"]
+```
+
+### 1.2 Create docker-compose.yml
+
+Create `docker-compose.yml` in your project root:
+
+```yaml
+version: "3.8"
+
+services:
+  eventbooking-app:
+    container_name: eventbooking-web
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - MONGODB_URI=mongodb://admin:eventbooking123@mongodb:27017/eventbooking?authSource=admin
+      - ACCESS_TOKEN_SECRET=your-access-token-secret-here-make-it-long-and-random-123
+      - REFRESH_TOKEN_SECRET=your-refresh-token-secret-here-make-it-long-and-random-456
+      - CLOUDINARY_CLOUD_NAME=dgos35yqc
+      - CLOUDINARY_API_KEY=181494556746859
+      - CLOUDINARY_API_SECRET=UBc3uCdTr1lNSJhofRVDtAj7ZZg
+      - ADMIN_PIN=1004
+      - NEXT_PUBLIC_APP_URL=http://YOUR_EC2_IP:3000
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - eventbooking-network
+
+  mongodb:
+    image: mongo:7.0
+    container_name: eventbooking-db
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=eventbooking123
+      - MONGO_INITDB_DATABASE=eventbooking
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+    restart: unless-stopped
+    networks:
+      - eventbooking-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongodb-data:
+    driver: local
+  mongodb-config:
+    driver: local
+
+networks:
+  eventbooking-network:
+    driver: bridge
+```
+
+### 1.3 Create .dockerignore
+
+Create `.dockerignore` file:
+
+```
+node_modules
+.next
+.git
+.env
+.env.local
+README.md
+.vscode
+```
+
+---
+
+## Part-I Step 2: Setup AWS EC2 Instance
+
+### 2.1 Launch EC2 Instance
+
+1. **Login to AWS Console** → Navigate to EC2
+2. **Click "Launch Instance"**
+3. **Configure Instance:**
+   - Name: `EventBooking-Server`
+   - AMI: **Ubuntu Server 22.04 LTS**
+   - Instance Type: **t2.medium** (minimum for Docker + Jenkins)
+   - Key Pair: Create new or select existing
+   - Storage: **20 GB** minimum
+
+### 2.2 Configure Security Group
+
+Add these **Inbound Rules**:
+
+| Type | Protocol | Port | Source | Description |
+|------|----------|------|--------|-------------|
+| SSH | TCP | 22 | My IP | SSH Access |
+| Custom TCP | TCP | 3000 | 0.0.0.0/0 | Part-I App |
+| Custom TCP | TCP | 3001 | 0.0.0.0/0 | Part-II App |
+| Custom TCP | TCP | 8080 | My IP | Jenkins |
+
+### 2.3 Launch and Note Public IP
+
+- Click **Launch Instance**
+- Note your **Public IPv4 Address** (e.g., `43.205.229.191`)
+
+---
+
+## Part-I Step 3: Connect to EC2 and Install Docker
+
+### 3.1 SSH into EC2
+
+```bash
+# Windows (PowerShell)
+ssh -i "your-key.pem" ubuntu@43.205.229.191
+
+# Mac/Linux
+chmod 400 your-key.pem
+ssh -i "your-key.pem" ubuntu@43.205.229.191
+```
+
+### 3.2 Update System
+
+```bash
+sudo apt update && sudo apt upgrade -y
+```
+
+### 3.3 Install Docker
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Add user to docker group
+sudo usermod -aG docker $USER
+
+# Apply group changes
+newgrp docker
+
+# Verify installation
+docker --version
+```
+
+### 3.4 Install Docker Compose
+
+```bash
+# Install Docker Compose
+sudo apt install docker-compose -y
+
+# Verify installation
+docker-compose --version
+```
+
+---
+
+## Part-I Step 4: Deploy Application
+
+### 4.1 Transfer Files to EC2
+
+**Option A: Using Git (Recommended)**
+
+```bash
+# On EC2
+cd ~
+git clone https://github.com/YOUR_USERNAME/EventBookingNextJs.git
+cd EventBookingNextJs
+```
+
+**Option B: Using SCP (from local machine)**
+
+```bash
+# From your local machine
+scp -i "your-key.pem" -r ./EventBookingNextJs ubuntu@43.205.229.191:~
+```
+
+### 4.2 Update EC2 IP in docker-compose.yml
+
+```bash
+# Edit docker-compose.yml on EC2
+nano docker-compose.yml
+
+# Update this line with your EC2 IP:
+- NEXT_PUBLIC_APP_URL=http://43.205.229.191:3000
+```
+
+### 4.3 Build and Run Containers
+
+```bash
+# Build the Docker image
+docker-compose build
+
+# Start containers in detached mode
+docker-compose up -d
+
+# Check container status
+docker-compose ps
+```
+
+### 4.4 Verify Deployment
+
+```bash
+# Check container logs
+docker-compose logs -f eventbooking-web
+
+# Check if containers are running
+docker ps
+
+# Test MongoDB connection
+docker exec -it eventbooking-db mongosh -u admin -p eventbooking123 --authenticationDatabase admin
+```
+
+### 4.5 Access Application
+
+Open browser and visit:
+- **Application:** `http://43.205.229.191:3000`
+
+---
+
+## Part-I Step 5: Push to Docker Hub (Optional)
+
+### 5.1 Build and Tag Image
+
+```bash
+# Login to Docker Hub
+docker login
+
+# Build image
+docker build -t YOUR_DOCKERHUB_USERNAME/eventbooking-app:latest .
+
+# Push to Docker Hub
+docker push YOUR_DOCKERHUB_USERNAME/eventbooking-app:latest
+```
+
+---
+
+## Part-I Verification Checklist
+
+- [ ] EC2 instance running
+- [ ] Docker and Docker Compose installed
+- [ ] Application accessible on port 3000
+- [ ] MongoDB container running with persistent volume
+- [ ] Data persists after container restart: `docker-compose restart`
+
+---
+
+# 🔄 PART-II: Jenkins CI/CD Automation Pipeline
+
+## What You'll Deploy:
+- Same application using **Jenkins automation**
+- Using **volume mounting** (NOT Dockerfile)
+- Different ports: **3001** (app), **27018** (MongoDB)
+- Different container names: **eventbooking-jenkins-web**, **eventbooking-jenkins-db**
+
+---
+
+## Part-II Step 1: Prepare Local Files
+
+### 1.1 Create docker-compose.jenkins.yml
+
+Create `docker-compose.jenkins.yml` in your project root:
 
 ```yaml
 version: "3.8"
@@ -41,9 +325,10 @@ services:
     container_name: eventbooking-jenkins-web
     working_dir: /app
     
-    # VOLUME MOUNT: Code attached as volume (NOT copied via Dockerfile)
+    # VOLUME MOUNT: Code attached as volume (NOT Dockerfile)
     volumes:
       - ./:/app
+      - /app/node_modules
       - /app/.next
     
     # Different port: 3001 (Part-I uses 3000)
@@ -52,26 +337,25 @@ services:
     
     environment:
       - NODE_ENV=production
-      - MONGODB_URI=mongodb://admin:eventbooking123@mongodb:27017/eventbooking?authSource=admin
-      - ACCESS_TOKEN_SECRET=your_access_token_secret_here
-      - REFRESH_TOKEN_SECRET=your_refresh_token_secret_here
-      - CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
-      - CLOUDINARY_API_KEY=your_cloudinary_api_key
-      - CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+      - MONGODB_URI=mongodb://admin:eventbooking123@eventbooking-jenkins-db:27017/eventbooking?authSource=admin
+      - ACCESS_TOKEN_SECRET=your-access-token-secret-here-make-it-long-and-random-123
+      - REFRESH_TOKEN_SECRET=your-refresh-token-secret-here-make-it-long-and-random-456
+      - CLOUDINARY_CLOUD_NAME=dgos35yqc
+      - CLOUDINARY_API_KEY=181494556746859
+      - CLOUDINARY_API_SECRET=UBc3uCdTr1lNSJhofRVDtAj7ZZg
       - ADMIN_PIN=1004
-      - NEXT_PUBLIC_APP_URL=http://13.201.33.162:3001
+      - NEXT_PUBLIC_APP_URL=http://43.205.229.191:3001
     
     command: sh -c "npm install && npm run build && npm start"
     
     depends_on:
-      mongodb:
-        condition: service_healthy
+      - eventbooking-jenkins-db
     
     restart: unless-stopped
     networks:
       - eventbooking-jenkins-network
 
-  mongodb:
+  eventbooking-jenkins-db:
     image: mongo:7.0
     container_name: eventbooking-jenkins-db
     
@@ -97,7 +381,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 40s
 
 volumes:
   mongodb-jenkins-data:
@@ -110,24 +393,596 @@ networks:
     driver: bridge
 ```
 
-**⚠️ Important:** Replace the environment variables with your actual values!
+### 1.2 Create Jenkinsfile
 
----
-
-### Step 1.2: Create Jenkinsfile
-
-Create this file in your project root: `Jenkinsfile` (no extension)
+Create `Jenkinsfile` in your project root:
 
 ```groovy
 pipeline {
     agent any
-
+    
     environment {
-        DOCKER_CREDENTIALS_ID = 'dockerhub-credentials'
-        DOCKER_USERNAME = 'hassu157'
-        GITHUB_REPO = 'https://github.com/muhammadhussnain157/EventBookingNextJs.git'
-        WORKSPACE_DIR = "${WORKSPACE}"
-        EC2_PUBLIC_IP = '13.201.33.162'
+        DOCKERHUB_CREDENTIALS = 'dockerhub-credentials'
+        EC2_PUBLIC_IP = '43.205.229.191'
+        COMPOSE_FILE = 'docker-compose.jenkins.yml'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                echo '========== Checking out code from GitHub =========='
+                checkout scm
+            }
+        }
+
+        stage('Verify Files') {
+            steps {
+                echo '========== Verifying required files =========='
+                sh '''
+                    echo "Listing workspace files:"
+                    ls -la
+                    
+                    if [ ! -f "${COMPOSE_FILE}" ]; then
+                        echo "ERROR: ${COMPOSE_FILE} not found!"
+                        exit 1
+                    fi
+                    
+                    echo "Docker Compose file found!"
+                    cat ${COMPOSE_FILE}
+                '''
+            }
+        }
+
+        stage('Stop Existing Containers') {
+            steps {
+                echo '========== Stopping existing containers =========='
+                sh '''
+                    if [ -f "${COMPOSE_FILE}" ]; then
+                        docker-compose -f ${COMPOSE_FILE} down || true
+                        docker system prune -f
+                    fi
+                '''
+            }
+        }
+
+        stage('Build and Run') {
+            steps {
+                echo '========== Building and running containers =========='
+                sh '''
+                    docker-compose -f ${COMPOSE_FILE} up -d --build
+                    
+                    echo "Waiting 120 seconds for containers to be ready..."
+                    sleep 120
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo '========== Verifying deployment =========='
+                sh '''
+                    echo "Checking running containers:"
+                    docker ps
+                    
+                    echo "\\nChecking container health:"
+                    docker-compose -f ${COMPOSE_FILE} ps
+                    
+                    echo "\\nApplication should be accessible at: http://${EC2_PUBLIC_IP}:3001"
+                '''
+            }
+        }
+
+        stage('Display Container Logs') {
+            steps {
+                echo '========== Container Logs =========='
+                sh '''
+                    echo "=== Web Container Logs ==="
+                    docker logs eventbooking-jenkins-web --tail 50
+                    
+                    echo "\\n=== Database Container Logs ==="
+                    docker logs eventbooking-jenkins-db --tail 20
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo '========== DEPLOYMENT SUCCESSFUL =========='
+            echo "Application URL: http://${EC2_PUBLIC_IP}:3001"
+        }
+        failure {
+            echo '========== DEPLOYMENT FAILED =========='
+            sh 'docker-compose -f ${COMPOSE_FILE} logs'
+        }
+    }
+}
+```
+
+### 1.3 Push to GitHub
+
+```bash
+# Add files
+git add docker-compose.jenkins.yml Jenkinsfile
+
+# Commit
+git commit -m "Add Jenkins deployment files with volume mounting"
+
+# Push to GitHub
+git push origin master
+```
+
+---
+
+## Part-II Step 2: Install Jenkins on EC2
+
+### 2.1 SSH into EC2
+
+```bash
+ssh -i "your-key.pem" ubuntu@43.205.229.191
+```
+
+### 2.2 Install Java (Jenkins Requirement)
+
+```bash
+# Install Java 17
+sudo apt update
+sudo apt install -y fontconfig openjdk-17-jre
+
+# Verify Java installation
+java -version
+```
+
+### 2.3 Install Jenkins
+
+```bash
+# Add Jenkins repository key
+sudo wget -O /usr/share/keyrings/jenkins-keyring.asc \
+  https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+
+# Add Jenkins repository
+echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc]" \
+  https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+# Update package list
+sudo apt update
+
+# Install Jenkins
+sudo apt install -y jenkins
+
+# Start Jenkins service
+sudo systemctl start jenkins
+
+# Enable Jenkins to start on boot
+sudo systemctl enable jenkins
+
+# Check Jenkins status
+sudo systemctl status jenkins
+```
+
+### 2.4 Get Initial Admin Password
+
+```bash
+# Get the initial password
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+```
+
+**Copy this password** - you'll need it in the next step!
+
+### 2.5 Add Jenkins User to Docker Group
+
+```bash
+# Add jenkins user to docker group
+sudo usermod -aG docker jenkins
+
+# Restart Jenkins
+sudo systemctl restart jenkins
+
+# Verify
+groups jenkins
+```
+
+---
+
+## Part-II Step 3: Configure Jenkins Web Interface
+
+### 3.1 Access Jenkins
+
+1. Open browser: `http://43.205.229.191:8080`
+2. Paste the initial admin password
+3. Click **Continue**
+
+### 3.2 Install Plugins
+
+1. Select **"Install suggested plugins"**
+2. Wait for installation to complete
+
+### 3.3 Create Admin User
+
+1. Fill in the form:
+   - Username: `admin`
+   - Password: (your choice)
+   - Full name: `Admin`
+   - Email: your email
+2. Click **Save and Continue**
+
+### 3.4 Jenkins URL
+
+1. Keep default URL: `http://43.205.229.191:8080/`
+2. Click **Save and Finish**
+3. Click **Start using Jenkins**
+
+---
+
+## Part-II Step 4: Install Required Jenkins Plugins
+
+### 4.1 Navigate to Plugin Manager
+
+1. Click **Manage Jenkins** (left sidebar)
+2. Click **Plugins**
+3. Click **Available plugins** tab
+
+### 4.2 Install Plugins
+
+Search and install these plugins:
+
+1. **Git** (usually pre-installed)
+2. **Pipeline** (usually pre-installed)
+3. **Docker Pipeline**
+4. **GitHub Integration**
+
+**Installation Steps:**
+- Check the box next to each plugin
+- Click **Install**
+- Wait for installation
+- Check **"Restart Jenkins when installation is complete"**
+
+### 4.3 Wait for Restart
+
+Jenkins will restart automatically. Refresh the page after 1-2 minutes.
+
+---
+
+## Part-II Step 5: Configure Docker Hub Credentials
+
+### 5.1 Navigate to Credentials
+
+1. Click **Manage Jenkins**
+2. Click **Credentials**
+3. Click **System**
+4. Click **Global credentials (unrestricted)**
+5. Click **Add Credentials**
+
+### 5.2 Add Docker Hub Credentials
+
+Fill in:
+- **Kind:** Username with password
+- **Scope:** Global
+- **Username:** `hassu157` (your Docker Hub username)
+- **Password:** (your Docker Hub password)
+- **ID:** `dockerhub-credentials`
+- **Description:** Docker Hub Credentials
+
+Click **Create**
+
+---
+
+## Part-II Step 6: Create Jenkins Pipeline
+
+### 6.1 Create New Pipeline
+
+1. From Jenkins dashboard, click **New Item**
+2. Enter name: `EventBooking-Build-Pipeline`
+3. Select **Pipeline**
+4. Click **OK**
+
+### 6.2 Configure Pipeline
+
+#### General Section:
+- **Description:** `Automated CI/CD pipeline for Event Booking application`
+- Check **GitHub project**
+- **Project url:** `https://github.com/muhammadhussnain157/EventBookingNextJs/`
+
+#### Build Triggers:
+- Check **Poll SCM**
+- **Schedule:** `H/5 * * * *` (checks GitHub every 5 minutes)
+
+#### Pipeline Section:
+- **Definition:** Pipeline script from SCM
+- **SCM:** Git
+- **Repository URL:** `https://github.com/muhammadhussnain157/EventBookingNextJs.git`
+- **Credentials:** None (for public repo)
+- **Branch:** `*/master`
+- **Script Path:** `Jenkinsfile`
+
+### 6.3 Save Pipeline
+
+Click **Save**
+
+---
+
+## Part-II Step 7: Run First Build
+
+### 7.1 Trigger Build
+
+1. Click **Build Now** (left sidebar)
+2. Watch build progress in **Build History**
+3. Click on build number (e.g., `#1`)
+4. Click **Console Output**
+
+### 7.2 Monitor Build
+
+Watch the console output for:
+- ✅ Checkout Code
+- ✅ Verify Files
+- ✅ Stop Existing Containers
+- ✅ Build and Run
+- ✅ Verify Deployment
+- ✅ Display Container Logs
+
+### 7.3 Wait for Completion
+
+Build takes approximately **2-3 minutes**. Look for:
+```
+========== DEPLOYMENT SUCCESSFUL ==========
+Application URL: http://43.205.229.191:3001
+Finished: SUCCESS
+```
+
+---
+
+## Part-II Step 8: Verify Deployment
+
+### 8.1 Check Containers on EC2
+
+```bash
+# SSH into EC2
+ssh -i "your-key.pem" ubuntu@43.205.229.191
+
+# Check running containers
+docker ps
+
+# You should see:
+# - eventbooking-jenkins-web (port 3001)
+# - eventbooking-jenkins-db (port 27018)
+```
+
+### 8.2 Check Container Logs
+
+```bash
+# Web container logs
+docker logs eventbooking-jenkins-web
+
+# Database logs
+docker logs eventbooking-jenkins-db
+```
+
+### 8.3 Access Application
+
+Open browser:
+- **Part-II Application:** `http://43.205.229.191:3001`
+- **Part-I Application:** `http://43.205.229.191:3000` (should still be running)
+
+---
+
+## Part-II Step 9: Test Automation
+
+### 9.1 Make Code Change
+
+1. Edit any file in your local repository
+2. Commit and push:
+
+```bash
+git add .
+git commit -m "Test Jenkins automation"
+git push origin master
+```
+
+### 9.2 Watch Jenkins
+
+1. Within 5 minutes, Jenkins will detect the change
+2. New build will start automatically
+3. Application will be redeployed
+
+---
+
+## Part-II Verification Checklist
+
+- [ ] Jenkins installed and running on port 8080
+- [ ] Git, Pipeline, and Docker Pipeline plugins installed
+- [ ] Docker Hub credentials configured
+- [ ] Pipeline created and configured
+- [ ] First build successful
+- [ ] Application accessible on port 3001
+- [ ] MongoDB running on port 27018
+- [ ] Volume mounting working (code changes reflected)
+- [ ] Automatic builds triggered on git push
+- [ ] Both Part-I (3000) and Part-II (3001) running simultaneously
+
+---
+
+## 🎯 Quick Command Reference
+
+### Part-I Commands
+```bash
+# Start Part-I containers
+cd ~/EventBookingNextJs
+docker-compose up -d
+
+# Stop Part-I containers
+docker-compose down
+
+# View Part-I logs
+docker-compose logs -f
+```
+
+### Part-II Commands
+```bash
+# Start Part-II containers (via Jenkins)
+# Use Jenkins UI to trigger build
+
+# Manual start (if needed)
+cd /var/lib/jenkins/workspace/EventBooking-Build-Pipeline
+docker-compose -f docker-compose.jenkins.yml up -d
+
+# Stop Part-II containers
+docker-compose -f docker-compose.jenkins.yml down
+
+# View Part-II logs
+docker logs eventbooking-jenkins-web
+docker logs eventbooking-jenkins-db
+```
+
+### Check All Containers
+```bash
+# List all running containers
+docker ps
+
+# Check disk usage
+df -h
+
+# Check Docker volumes
+docker volume ls
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Issue 1: Jenkins Build Fails - "Cannot connect to Docker daemon"
+
+**Solution:**
+```bash
+# Add jenkins to docker group
+sudo usermod -aG docker jenkins
+
+# Restart Jenkins
+sudo systemctl restart jenkins
+
+# Verify
+groups jenkins
+```
+
+### Issue 2: Port Already in Use
+
+**Solution:**
+```bash
+# Check what's using port 3001
+sudo lsof -i :3001
+
+# Kill the process if needed
+sudo kill -9 <PID>
+
+# Or use different port in docker-compose.jenkins.yml
+```
+
+### Issue 3: Containers Exit Immediately
+
+**Solution:**
+```bash
+# Check container logs
+docker logs eventbooking-jenkins-web
+
+# Common issues:
+# - Missing dependencies: Check npm install output
+# - MongoDB connection: Verify MongoDB is running
+# - Environment variables: Check .env values
+```
+
+### Issue 4: Cannot Access Application
+
+**Check:**
+1. Security group allows port 3001
+2. Containers are running: `docker ps`
+3. EC2 IP is correct in NEXT_PUBLIC_APP_URL
+4. Firewall: `sudo ufw status`
+
+---
+
+## 📊 Assignment Requirements Checklist
+
+### Part-I Requirements
+- [x] Web application with database
+- [x] Dockerfile to build image
+- [x] Docker Compose file
+- [x] Deployed on AWS EC2
+- [x] Persistent volume for database
+- [x] Image pushed to Docker Hub
+
+### Part-II Requirements
+- [x] Code in GitHub repository
+- [x] Jenkins running on EC2
+- [x] Pipeline script using Git, Pipeline, Docker Pipeline plugins
+- [x] Automated build from GitHub
+- [x] Volume mounting (NOT Dockerfile)
+- [x] Different port numbers (3001 vs 3000)
+- [x] Different container names (eventbooking-jenkins-* vs eventbooking-*)
+- [x] Containerized deployment via Jenkins
+
+---
+
+## 🎓 What You've Learned
+
+### Part-I Skills
+✅ Writing Dockerfile for Node.js applications  
+✅ Creating Docker Compose configurations  
+✅ Setting up AWS EC2 instances  
+✅ Configuring security groups  
+✅ Installing Docker and Docker Compose  
+✅ Managing persistent volumes  
+✅ Pushing images to Docker Hub  
+
+### Part-II Skills
+✅ Installing and configuring Jenkins  
+✅ Creating Jenkins pipelines  
+✅ Integrating Jenkins with GitHub  
+✅ Using volume mounting for code deployment  
+✅ Running multiple containerized apps on same host  
+✅ Automating CI/CD workflows  
+✅ Managing different environments (Part-I vs Part-II)  
+
+---
+
+## 📞 Need Help?
+
+**Common Issues:**
+- Jenkins not starting → Check Java installation
+- Build fails → Check Jenkins logs: `sudo journalctl -u jenkins -f`
+- Docker permission denied → Add user to docker group
+- Port conflicts → Use different ports or stop conflicting services
+
+**Useful Commands:**
+```bash
+# Restart Jenkins
+sudo systemctl restart jenkins
+
+# View Jenkins logs
+sudo journalctl -u jenkins -f
+
+# Clear Docker cache
+docker system prune -a
+
+# Check Jenkins workspace
+ls /var/lib/jenkins/workspace/EventBooking-Build-Pipeline
+```
+
+---
+
+## 🎉 Success!
+
+You've successfully completed both parts:
+- **Part-I:** Application running at `http://43.205.229.191:3000`
+- **Part-II:** Application running at `http://43.205.229.191:3001`
+- **Jenkins:** Accessible at `http://43.205.229.191:8080`
+
+Both applications are running simultaneously on the same EC2 instance!
+
+---
+
+**Last Updated:** November 8, 2025  
+**EC2 IP:** 43.205.229.191  
+**Repository:** https://github.com/muhammadhussnain157/EventBookingNextJs
     }
 
     stages {
